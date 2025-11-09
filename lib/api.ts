@@ -27,19 +27,80 @@ export async function fetchTable(tableName: string) {
 }
 
 export async function createRecord(tableName: string, record: any) {
+  // Ensure we have an authenticated session
+  const { data: { session } } = await supabase.auth.getSession()
+  
+  if (!session) {
+    throw new Error('Not authenticated. Please log in again.')
+  }
+
   const { data, error } = await supabase.from(tableName).insert(record).select().single()
-  if (error) throw error
+  
+  if (error) {
+    console.error(`Error creating record in ${tableName}:`, error)
+    
+    // Handle specific error cases
+    if (error.code === '23505') {
+      throw new Error('A record with this information already exists.')
+    }
+    if (error.code === '23503') {
+      throw new Error('Invalid reference. Please check related data.')
+    }
+    if (error.code === '23502') {
+      throw new Error('Required field is missing. Please fill in all required fields.')
+    }
+    if (error.code === 'PGRST301' || error.message?.includes('permission denied') || error.message?.includes('policy')) {
+      throw new Error(`Access denied. Please check Row Level Security (RLS) policies in Supabase.`)
+    }
+    if (error.message?.includes('violates check constraint')) {
+      throw new Error('Invalid value provided. Please check your input (e.g., status, format, category).')
+    }
+    
+    // Generic error with more context
+    throw new Error(error.message || `Failed to create record in ${tableName}`)
+  }
+  
   return data
 }
 
 export async function updateRecord(tableName: string, id: string | number, updates: any) {
+  // Ensure we have an authenticated session
+  const { data: { session } } = await supabase.auth.getSession()
+  
+  if (!session) {
+    throw new Error('Not authenticated. Please log in again.')
+  }
+
   const { data, error } = await supabase
     .from(tableName)
     .update({ ...updates, updated_at: new Date().toISOString() })
     .eq('id', id)
     .select()
     .single()
-  if (error) throw error
+  
+  if (error) {
+    console.error(`Error updating record in ${tableName}:`, error)
+    
+    // Handle specific error cases
+    if (error.code === 'PGRST116') {
+      throw new Error('Record not found. It may have been deleted.')
+    }
+    if (error.code === '23505') {
+      throw new Error('A record with this information already exists.')
+    }
+    if (error.code === '23502') {
+      throw new Error('Required field is missing. Please fill in all required fields.')
+    }
+    if (error.code === 'PGRST301' || error.message?.includes('permission denied') || error.message?.includes('policy')) {
+      throw new Error(`Access denied. Please check Row Level Security (RLS) policies in Supabase.`)
+    }
+    if (error.message?.includes('violates check constraint')) {
+      throw new Error('Invalid value provided. Please check your input (e.g., status, format, category).')
+    }
+    
+    throw new Error(error.message || `Failed to update record in ${tableName}`)
+  }
+  
   return data
 }
 

@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import Layout from '@/components/Layout'
 import Link from 'next/link'
-import { dashboardStats } from '@/lib/api'
+import Calendar from '@/components/Calendar'
+import { dashboardStats, eventsApi, hackathonsApi, scholarshipsApi } from '@/lib/api'
 
 // SVG Icons
 const CalendarIcon = () => (
@@ -56,10 +57,15 @@ export default function Dashboard() {
     signups: 0,
     partnerEvents: 0,
   })
+  const [calendarEvents, setCalendarEvents] = useState<any[]>([])
+  const [calendarHackathons, setCalendarHackathons] = useState<any[]>([])
+  const [calendarScholarships, setCalendarScholarships] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [calendarLoading, setCalendarLoading] = useState(true)
 
   useEffect(() => {
     loadStats()
+    loadCalendarData()
   }, [])
 
   const loadStats = async () => {
@@ -77,6 +83,26 @@ export default function Dashboard() {
       console.error('Error loading stats:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadCalendarData = async () => {
+    try {
+      setCalendarLoading(true)
+      const [events, hackathons, scholarships] = await Promise.all([
+        eventsApi.fetch(),
+        hackathonsApi.fetch(),
+        scholarshipsApi.fetch(),
+      ])
+      
+      // Filter only items with start_date
+      setCalendarEvents(events.filter((e: any) => e.start_date))
+      setCalendarHackathons(hackathons.filter((h: any) => h.start_date))
+      setCalendarScholarships(scholarships.filter((s: any) => s.start_date))
+    } catch (error) {
+      console.error('Error loading calendar data:', error)
+    } finally {
+      setCalendarLoading(false)
     }
   }
 
@@ -197,6 +223,23 @@ export default function Dashboard() {
               </Link>
             )
           })}
+        </div>
+
+        {/* Calendar Section */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Upcoming Events Calendar</h2>
+          {calendarLoading ? (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+              <p className="mt-4 text-gray-500">Loading calendar...</p>
+            </div>
+          ) : (
+            <Calendar
+              events={calendarEvents}
+              hackathons={calendarHackathons}
+              scholarships={calendarScholarships}
+            />
+          )}
         </div>
       </div>
     </Layout>
