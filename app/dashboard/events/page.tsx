@@ -1,13 +1,15 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Layout from '@/components/Layout'
 import DataTable from '@/components/DataTable'
 import Modal from '@/components/Modal'
 import EventForm from '@/components/EventForm'
 import EventDetailView from '@/components/EventDetailView'
 import { eventsApi } from '@/lib/api'
-import { format } from 'date-fns'
+import { format, isToday, isTomorrow, startOfDay } from 'date-fns'
+
+type ViewMode = 'card' | 'table' | 'chronological'
 
 export default function EventsPage() {
   const [events, setEvents] = useState<any[]>([])
@@ -18,6 +20,8 @@ export default function EventsPage() {
   const [viewingEvent, setViewingEvent] = useState<any>(null)
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
+  const [viewMode, setViewMode] = useState<ViewMode>('card')
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     loadEvents()
@@ -120,6 +124,140 @@ export default function EventsPage() {
     return colors[category] || colors.other
   }
 
+  // Helper function to format date for chronological view
+  const formatDateLabel = (date: Date) => {
+    if (isToday(date)) {
+      return 'Today'
+    } else if (isTomorrow(date)) {
+      return 'Tomorrow'
+    } else {
+      return format(date, 'MMM d')
+    }
+  }
+
+  const formatDayOfWeek = (date: Date) => {
+    return format(date, 'EEEE')
+  }
+
+  // Filter events based on search
+  const filteredEvents = useMemo(() => {
+    let filtered = [...events]
+
+    // Search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase()
+      filtered = filtered.filter((event) => {
+        const title = (event.title || '').toLowerCase()
+        const description = (event.short_description || event.description || '').toLowerCase()
+        const location = (event.location || '').toLowerCase()
+        const organizer = (event.organizer_name || '').toLowerCase()
+        return (
+          title.includes(query) ||
+          description.includes(query) ||
+          location.includes(query) ||
+          organizer.includes(query)
+        )
+      })
+    }
+
+    return filtered
+  }, [events, searchQuery])
+
+  // Group filtered events by date for chronological view
+  const eventsByDate = useMemo(() => {
+    const grouped: Record<string, any[]> = {}
+    filteredEvents.forEach((event) => {
+      if (event.start_date) {
+        const date = startOfDay(new Date(event.start_date))
+        const dateKey = date.toISOString()
+        if (!grouped[dateKey]) {
+          grouped[dateKey] = []
+        }
+        grouped[dateKey].push(event)
+      }
+    })
+    
+    // Sort dates and events within each date
+    const sortedDates = Object.keys(grouped).sort()
+    const result: Array<{ date: Date; events: any[] }> = []
+    sortedDates.forEach((dateKey) => {
+      result.push({
+        date: new Date(dateKey),
+        events: grouped[dateKey].sort((a, b) => {
+          const timeA = a.start_date ? new Date(a.start_date).getTime() : 0
+          const timeB = b.start_date ? new Date(b.start_date).getTime() : 0
+          return timeA - timeB
+        }),
+      })
+    })
+    return result
+  }, [filteredEvents])
+
+  // Table columns configuration
+  const tableColumns = [
+    {
+      key: 'title',
+      label: 'Title',
+      render: (value: any, row: any) => (
+        <div>
+          <div className="font-medium text-gray-900">{value || '-'}</div>
+          {row.short_description && (
+            <div className="text-sm text-gray-500 mt-1 line-clamp-1">{row.short_description}</div>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'start_date',
+      label: 'Start Date',
+      render: (value: any) => (value ? format(new Date(value), 'PPp') : '-'),
+    },
+    {
+      key: 'end_date',
+      label: 'End Date',
+      render: (value: any) => (value ? format(new Date(value), 'PPp') : '-'),
+    },
+    {
+      key: 'location',
+      label: 'Location',
+    },
+    {
+      key: 'organizer_name',
+      label: 'Organizer',
+      render: (value: any, row: any) => (
+        <div>
+          {value ? (
+            <>
+              <div className="font-medium text-gray-900">{value}</div>
+              {row.organizer_contactinfo && (
+                <div className="text-sm text-gray-500 mt-0.5">{row.organizer_contactinfo}</div>
+              )}
+            </>
+          ) : (
+            '-'
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (value: any) => getStatusBadge(value),
+    },
+    {
+      key: 'category',
+      label: 'Category',
+      render: (value: any) =>
+        value ? (
+          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getCategoryColor(value)}`}>
+            {value.charAt(0).toUpperCase() + value.slice(1)}
+          </span>
+        ) : (
+          '-'
+        ),
+    },
+  ]
+
   if (loading) {
     return (
       <Layout>
@@ -178,8 +316,58 @@ export default function EventsPage() {
         <div className="sm:flex sm:items-center mb-6">
           <div className="sm:flex-auto">
             <h1 className="text-2xl font-bold text-gray-900">Events</h1>
+            {filteredEvents.length !== events.length && (
+              <p className="text-sm text-gray-500 mt-1">
+                Showing {filteredEvents.length} of {events.length} events
+              </p>
+            )}
           </div>
-          <div className="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
+          <div className="mt-4 sm:mt-0 sm:ml-16 sm:flex-none flex items-center gap-3">
+            {/* View Toggle Buttons */}
+            <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
+              <button
+                type="button"
+                onClick={() => setViewMode('card')}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  viewMode === 'card'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+                title="Card View"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('table')}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  viewMode === 'table'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+                title="Table View"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('chronological')}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  viewMode === 'chronological'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+                title="Chronological View"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </button>
+            </div>
             <button
               type="button"
               onClick={handleAdd}
@@ -190,14 +378,55 @@ export default function EventsPage() {
           </div>
         </div>
 
-        {/* Events Grid */}
-        {events.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
-            <p className="text-gray-500">No events available</p>
+        {/* Search */}
+        <div className="mb-6">
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <input
+              type="text"
+              placeholder="Search events by title, description, location, or organizer..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary-500 focus:border-primary-500 sm:text-sm"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center"
+              >
+                <svg className="h-5 w-5 text-gray-400 hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
           </div>
-        ) : (
+        </div>
+
+        {/* Events Display - Conditional Rendering */}
+        {filteredEvents.length === 0 ? (
+          <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
+            <p className="text-gray-500">
+              {events.length === 0
+                ? 'No events available'
+                : 'No events match your search criteria'}
+            </p>
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="mt-4 text-sm text-primary-600 hover:text-primary-800 font-medium"
+              >
+                Clear search
+              </button>
+            )}
+          </div>
+        ) : viewMode === 'card' ? (
+          /* Card View */
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
-            {events.map((event) => (
+            {filteredEvents.map((event) => (
               <div
                 key={event.id}
                 onClick={() => handleViewDetails(event)}
@@ -324,9 +553,179 @@ export default function EventsPage() {
                     )}
                   </div>
                 </div>
-
               </div>
             ))}
+          </div>
+        ) : viewMode === 'table' ? (
+          /* Table View */
+          <div className="mt-8 flow-root">
+            <div className="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
+              <div className="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
+                <div className="overflow-hidden shadow-sm ring-1 ring-gray-200 rounded-xl bg-white">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        {tableColumns.map((column) => (
+                          <th
+                            key={column.key}
+                            scope="col"
+                            className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6"
+                          >
+                            {column.label}
+                          </th>
+                        ))}
+                        <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
+                          <span className="sr-only">Actions</span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 bg-white">
+                      {filteredEvents.map((event) => (
+                        <tr key={event.id} className="hover:bg-gray-50 transition-colors">
+                          {tableColumns.map((column) => (
+                            <td
+                              key={column.key}
+                              className={`py-4 pl-4 pr-3 text-sm text-gray-900 sm:pl-6 ${
+                                column.key === 'title' ? '' : 'whitespace-nowrap'
+                              }`}
+                            >
+                              {column.render
+                                ? column.render(event[column.key], event)
+                                : event[column.key]?.toString() || '-'}
+                            </td>
+                          ))}
+                          <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                            <div className="flex justify-end space-x-4">
+                              <button
+                                onClick={() => handleViewDetails(event)}
+                                className="text-primary-600 hover:text-primary-800 font-medium"
+                              >
+                                View
+                              </button>
+                              <button
+                                onClick={() => handleEdit(event)}
+                                className="text-primary-600 hover:text-primary-800 font-medium"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDelete(event)}
+                                className="text-red-600 hover:text-red-800 font-medium"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Chronological View */
+          <div className="relative">
+            {/* Timeline line */}
+            <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-gray-200"></div>
+            
+            <div className="space-y-8">
+              {eventsByDate.map(({ date, events: dateEvents }, dateIndex) => (
+                <div key={date.toISOString()} className="relative flex gap-6">
+                  {/* Date label on the left */}
+                  <div className="flex-shrink-0 w-16 text-right pt-1">
+                    <div className="sticky top-4">
+                      <div className="relative">
+                        <div className="absolute -left-8 top-2 w-4 h-4 bg-white border-2 border-primary-500 rounded-full"></div>
+                        <div className="text-sm font-semibold text-gray-900">
+                          {formatDateLabel(date)}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-0.5">
+                          {formatDayOfWeek(date)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Events for this date */}
+                  <div className="flex-1 space-y-4 pb-8">
+                    {dateEvents.map((event) => (
+                      <div
+                        key={event.id}
+                        onClick={() => handleViewDetails(event)}
+                        className="group bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md hover:border-primary-300 transition-all duration-200 overflow-hidden cursor-pointer"
+                      >
+                        <div className="p-6">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1">
+                              {/* Time */}
+                              {event.start_date && (
+                                <div className="text-sm font-medium text-gray-900 mb-2">
+                                  {format(new Date(event.start_date), 'HH:mm')}
+                                </div>
+                              )}
+                              
+                              {/* Title */}
+                              <h3 className="text-lg font-bold text-gray-900 mb-2">
+                                {event.title}
+                              </h3>
+                              
+                              {/* Organizer/Speakers */}
+                              {event.organizer_name && (
+                                <p className="text-sm text-gray-600 mb-3">
+                                  By {event.organizer_name}
+                                  {event.organizer_contactinfo && `, ${event.organizer_contactinfo}`}
+                                </p>
+                              )}
+                              
+                              {/* Location */}
+                              {event.location && (
+                                <p className="text-sm text-gray-600 mb-3">
+                                  {event.location}
+                                </p>
+                              )}
+                              
+                              {/* Description */}
+                              {event.short_description && (
+                                <p className="text-sm text-gray-500 line-clamp-2">
+                                  {event.short_description}
+                                </p>
+                              )}
+                              
+                              {/* Badges */}
+                              <div className="flex items-center gap-2 flex-wrap mt-3">
+                                {getStatusBadge(event.status)}
+                                {event.category && (
+                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getCategoryColor(event.category)}`}>
+                                    {event.category.charAt(0).toUpperCase() + event.category.slice(1)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* Event image/logo placeholder */}
+                            <div className="flex-shrink-0 w-24 h-24 bg-gray-100 rounded-lg flex items-center justify-center">
+                              {event.image_url ? (
+                                <img
+                                  src={event.image_url}
+                                  alt={event.title}
+                                  className="w-full h-full object-cover rounded-lg"
+                                />
+                              ) : (
+                                <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
