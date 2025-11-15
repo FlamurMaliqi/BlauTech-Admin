@@ -5,7 +5,8 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSam
 
 interface CalendarItem {
   id: number
-  title: string
+  name?: string
+  title?: string // Fallback for backward compatibility
   start_date: string
   end_date?: string
   type: 'event' | 'hackathon' | 'scholarship'
@@ -167,15 +168,18 @@ export default function Calendar({ events, hackathons, scholarships }: CalendarP
                 {format(day, 'd')}
               </div>
               <div className="space-y-1">
-                {dayItems.slice(0, 2).map((item) => (
-                  <div
-                    key={item.id}
-                    className={`text-xs px-1.5 py-0.5 rounded truncate ${getTypeColor(item.type)}`}
-                    title={item.title}
-                  >
-                    {item.title.length > 15 ? item.title.substring(0, 15) + '...' : item.title}
-                  </div>
-                ))}
+                {dayItems.slice(0, 2).map((item) => {
+                  const itemTitle = item.name || item.title || 'Untitled'
+                  return (
+                    <div
+                      key={item.id}
+                      className={`text-xs px-1.5 py-0.5 rounded truncate ${getTypeColor(item.type)}`}
+                      title={itemTitle}
+                    >
+                      {itemTitle.length > 15 ? itemTitle.substring(0, 15) + '...' : itemTitle}
+                    </div>
+                  )
+                })}
                 {dayItems.length > 2 && (
                   <div className="text-xs text-gray-500 px-1.5">
                     +{dayItems.length - 2} more
@@ -214,7 +218,7 @@ export default function Calendar({ events, hackathons, scholarships }: CalendarP
                         {format(new Date(item.start_date), 'MMM d, yyyy')}
                       </span>
                     </div>
-                    <p className="text-sm font-medium text-gray-900">{item.title}</p>
+                    <p className="text-sm font-medium text-gray-900">{item.name || item.title || 'Untitled'}</p>
                   </div>
                 </div>
               ))}
