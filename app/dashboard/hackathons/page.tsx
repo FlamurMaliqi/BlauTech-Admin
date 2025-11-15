@@ -55,7 +55,7 @@ export default function HackathonsPage() {
   }
 
   const handleDelete = async (hackathon: any) => {
-    if (!confirm(`Are you sure you want to delete "${hackathon.title}"?`)) {
+    if (!confirm(`Are you sure you want to delete "${hackathon.name || hackathon.title}"?`)) {
       return
     }
 
@@ -94,38 +94,24 @@ export default function HackathonsPage() {
     }
   }
 
-  const getStatusBadge = (status: string) => {
-    const statusConfig: Record<string, { bg: string; text: string; label: string }> = {
-      draft: { bg: 'bg-gray-100', text: 'text-gray-800', label: 'Draft' },
-      published: { bg: 'bg-green-100', text: 'text-green-800', label: 'Published' },
-      cancelled: { bg: 'bg-red-100', text: 'text-red-800', label: 'Cancelled' },
-      completed: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Completed' },
-      postponed: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Postponed' },
-      registration_open: { bg: 'bg-emerald-100', text: 'text-emerald-800', label: 'Registration Open' },
-      in_progress: { bg: 'bg-purple-100', text: 'text-purple-800', label: 'In Progress' },
-      judging: { bg: 'bg-indigo-100', text: 'text-indigo-800', label: 'Judging' },
-      results_announced: { bg: 'bg-cyan-100', text: 'text-cyan-800', label: 'Results Announced' },
+  // Helper function to combine date and time
+  const combineDateTime = (date: string | Date | null, time: string | null): Date | null => {
+    if (!date) return null
+    const dateObj = typeof date === 'string' ? new Date(date) : date
+    if (time) {
+      const [hours, minutes] = time.split(':')
+      dateObj.setHours(parseInt(hours) || 0, parseInt(minutes) || 0, 0, 0)
     }
-    const config = statusConfig[status] || statusConfig.draft
-    return (
-      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${config.bg} ${config.text}`}>
-        {config.label}
-      </span>
-    )
+    return dateObj
   }
 
-  const getCategoryColor = (category: string) => {
-    const colors: Record<string, string> = {
-      workshop: 'bg-purple-100 text-purple-800',
-      conference: 'bg-indigo-100 text-indigo-800',
-      meetup: 'bg-pink-100 text-pink-800',
-      webinar: 'bg-cyan-100 text-cyan-800',
-      networking: 'bg-orange-100 text-orange-800',
-      training: 'bg-teal-100 text-teal-800',
-      hackathon: 'bg-emerald-100 text-emerald-800',
-      other: 'bg-gray-100 text-gray-800',
-    }
-    return colors[category] || colors.other
+  // Helper function to format date and time
+  const formatHackathonDateTime = (hackathon: any, isEnd: boolean = false) => {
+    const date = isEnd ? hackathon.end_date : hackathon.start_date
+    const time = isEnd ? hackathon.end_time : hackathon.start_time
+    const dateTime = combineDateTime(date, time)
+    if (!dateTime) return '-'
+    return format(dateTime, 'PPp')
   }
 
   // Helper function to format date for chronological view
@@ -151,15 +137,15 @@ export default function HackathonsPage() {
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase()
       filtered = filtered.filter((hackathon) => {
-        const title = (hackathon.title || '').toLowerCase()
-        const description = (hackathon.short_description || hackathon.description || '').toLowerCase()
+        const name = (hackathon.name || hackathon.title || '').toLowerCase()
+        const description = (hackathon.description || '').toLowerCase()
         const location = (hackathon.location || '').toLowerCase()
-        const organizer = (hackathon.organizer_name || '').toLowerCase()
+        const organisers = (hackathon.organisers || hackathon.organizer_name || '').toLowerCase()
         return (
-          title.includes(query) ||
+          name.includes(query) ||
           description.includes(query) ||
           location.includes(query) ||
-          organizer.includes(query)
+          organisers.includes(query)
         )
       })
     }
@@ -188,8 +174,10 @@ export default function HackathonsPage() {
       result.push({
         date: new Date(dateKey),
         hackathons: grouped[dateKey].sort((a, b) => {
-          const timeA = a.start_date ? new Date(a.start_date).getTime() : 0
-          const timeB = b.start_date ? new Date(b.start_date).getTime() : 0
+          const dateTimeA = combineDateTime(a.start_date, a.start_time)
+          const dateTimeB = combineDateTime(b.start_date, b.start_time)
+          const timeA = dateTimeA ? dateTimeA.getTime() : 0
+          const timeB = dateTimeB ? dateTimeB.getTime() : 0
           return timeA - timeB
         }),
       })
@@ -200,65 +188,46 @@ export default function HackathonsPage() {
   // Table columns configuration
   const tableColumns = [
     {
-      key: 'title',
-      label: 'Title',
+      key: 'name',
+      label: 'Name',
       render: (value: any, row: any) => (
         <div>
-          <div className="font-medium text-gray-900">{value || '-'}</div>
-          {row.short_description && (
-            <div className="text-sm text-gray-500 mt-1 line-clamp-1">{row.short_description}</div>
+          <div className="font-medium text-gray-900">{value || row.title || '-'}</div>
+          {row.description && (
+            <div className="text-sm text-gray-500 mt-1 line-clamp-1">{row.description}</div>
           )}
         </div>
       ),
     },
     {
       key: 'start_date',
-      label: 'Start Date',
-      render: (value: any) => (value ? format(new Date(value), 'PPp') : '-'),
+      label: 'Start Date & Time',
+      render: (value: any, row: any) => formatHackathonDateTime(row, false),
     },
     {
       key: 'end_date',
-      label: 'End Date',
-      render: (value: any) => (value ? format(new Date(value), 'PPp') : '-'),
+      label: 'End Date & Time',
+      render: (value: any, row: any) => formatHackathonDateTime(row, true),
     },
     {
       key: 'location',
       label: 'Location',
     },
     {
-      key: 'organizer_name',
-      label: 'Organizer',
+      key: 'organisers',
+      label: 'Organisers',
       render: (value: any, row: any) => (
         <div>
-          {value ? (
-            <>
-              <div className="font-medium text-gray-900">{value}</div>
-              {row.organizer_contactinfo && (
-                <div className="text-sm text-gray-500 mt-0.5">{row.organizer_contactinfo}</div>
-              )}
-            </>
-          ) : (
-            '-'
-          )}
+          {value || row.organizer_name || '-'}
         </div>
       ),
     },
     {
-      key: 'status',
-      label: 'Status',
-      render: (value: any) => getStatusBadge(value),
-    },
-    {
-      key: 'category',
-      label: 'Category',
-      render: (value: any) =>
-        value ? (
-          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getCategoryColor(value)}`}>
-            {value.charAt(0).toUpperCase() + value.slice(1)}
-          </span>
-        ) : (
-          '-'
-        ),
+      key: 'prizes',
+      label: 'Prizes',
+      render: (value: any) => value ? (
+        <span className="text-sm text-gray-900 line-clamp-1">{value}</span>
+      ) : '-',
     },
   ]
 
@@ -441,27 +410,14 @@ export default function HackathonsPage() {
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
                       <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2">
-                        {hackathon.title}
+                        {hackathon.name || hackathon.title}
                       </h3>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {getStatusBadge(hackathon.status)}
-                        {hackathon.category && (
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${getCategoryColor(hackathon.category)}`}>
-                            {hackathon.category.charAt(0).toUpperCase() + hackathon.category.slice(1)}
-                          </span>
-                        )}
-                        {hackathon.format && (
-                          <span className="px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            {hackathon.format.charAt(0).toUpperCase() + hackathon.format.slice(1).replace('-', ' ')}
-                          </span>
-                        )}
-                      </div>
                     </div>
                   </div>
                   
-                  {hackathon.short_description && (
+                  {hackathon.description && (
                     <p className="text-sm text-gray-600 mb-4 line-clamp-2">
-                      {hackathon.short_description}
+                      {hackathon.description}
                     </p>
                   )}
                 </div>
@@ -474,13 +430,13 @@ export default function HackathonsPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs text-gray-500">Start Date</p>
+                      <p className="text-xs text-gray-500">Start Date & Time</p>
                       <p className="text-sm font-medium text-gray-900">
-                        {hackathon.start_date ? format(new Date(hackathon.start_date), 'PPp') : '-'}
+                        {formatHackathonDateTime(hackathon, false)}
                       </p>
                       {hackathon.end_date && (
                         <p className="text-xs text-gray-500 mt-1">
-                          Ends: {format(new Date(hackathon.end_date), 'PPp')}
+                          Ends: {formatHackathonDateTime(hackathon, true)}
                         </p>
                       )}
                     </div>
@@ -500,62 +456,86 @@ export default function HackathonsPage() {
                     </div>
                   )}
 
-                  {/* Registration & Capacity */}
-                  <div className="grid grid-cols-2 gap-3">
-                    {hackathon.registration_url && (
-                      <div>
-                        <p className="text-xs text-gray-500 mb-1">Registration</p>
-                        <a
-                          href={hackathon.registration_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm text-primary-600 hover:text-primary-800 font-medium inline-flex items-center gap-1"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          Register
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                          </svg>
-                        </a>
+                  {/* Prizes */}
+                  {hackathon.prizes && (
+                    <div className="flex items-start gap-3">
+                      <svg className="w-5 h-5 text-gray-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-gray-500">Prizes</p>
+                        <p className="text-sm font-medium text-gray-900">{hackathon.prizes}</p>
                       </div>
-                    )}
-                    {hackathon.capacity && (
-                      <div>
-                        <p className="text-xs text-gray-500 mb-1">Capacity</p>
-                        <p className="text-sm font-medium text-gray-900">{hackathon.capacity} participants</p>
-                      </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
 
-                  {/* Organizer */}
-                  {hackathon.organizer_name && (
+                  {/* Link */}
+                  {hackathon.link && (
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Link</p>
+                      <a
+                        href={hackathon.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-primary-600 hover:text-primary-800 font-medium inline-flex items-center gap-1"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        View Hackathon
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </a>
+                    </div>
+                  )}
+
+                  {/* Organisers */}
+                  {hackathon.organisers && (
                     <div className="flex items-start gap-3">
                       <svg className="w-5 h-5 text-gray-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                       </svg>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs text-gray-500">Organizer</p>
-                        <p className="text-sm font-medium text-gray-900">{hackathon.organizer_name}</p>
-                        {hackathon.organizer_contactinfo && (
-                          <p className="text-xs text-gray-500 mt-0.5">{hackathon.organizer_contactinfo}</p>
-                        )}
+                        <p className="text-xs text-gray-500">Organisers</p>
+                        <p className="text-sm font-medium text-gray-900">{hackathon.organisers}</p>
                       </div>
                     </div>
                   )}
 
-                  {/* Additional Info */}
-                  <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
-                    {hackathon.duration && (
-                      <span className="text-xs text-gray-500">
-                        ⏱️ {hackathon.duration} min
-                      </span>
-                    )}
-                    {hackathon.registration_deadline && (
-                      <span className="text-xs text-gray-500">
-                        📅 Reg. by {format(new Date(hackathon.registration_deadline), 'MMM d')}
-                      </span>
-                    )}
-                  </div>
+                  {/* Signup Deadline */}
+                  {hackathon.signup_deadline && (
+                    <div className="flex items-start gap-3">
+                      <svg className="w-5 h-5 text-gray-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-gray-500">Signup Deadline</p>
+                        <p className="text-sm font-medium text-gray-900">
+                          {format(new Date(hackathon.signup_deadline), 'PPp')}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Social Media Posting Status */}
+                  {(hackathon.posted_linkedin || hackathon.posted_whatsapp || hackathon.posted_newsletter) && (
+                    <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
+                      {hackathon.posted_linkedin && (
+                        <span className="text-xs text-gray-500">
+                          ✓ LinkedIn
+                        </span>
+                      )}
+                      {hackathon.posted_whatsapp && (
+                        <span className="text-xs text-gray-500">
+                          ✓ WhatsApp
+                        </span>
+                      )}
+                      {hackathon.posted_newsletter && (
+                        <span className="text-xs text-gray-500">
+                          ✓ Newsletter
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -590,7 +570,7 @@ export default function HackathonsPage() {
                             <td
                               key={column.key}
                               className={`py-4 pl-4 pr-3 text-sm text-gray-900 sm:pl-6 ${
-                                column.key === 'title' ? '' : 'whitespace-nowrap'
+                                column.key === 'name' ? '' : 'whitespace-nowrap'
                               }`}
                             >
                               {column.render
@@ -664,22 +644,21 @@ export default function HackathonsPage() {
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1">
                               {/* Time */}
-                              {hackathon.start_date && (
+                              {hackathon.start_time && (
                                 <div className="text-sm font-medium text-gray-900 mb-2">
-                                  {format(new Date(hackathon.start_date), 'HH:mm')}
+                                  {hackathon.start_time}
                                 </div>
                               )}
                               
                               {/* Title */}
                               <h3 className="text-lg font-bold text-gray-900 mb-2">
-                                {hackathon.title}
+                                {hackathon.name || hackathon.title}
                               </h3>
                               
-                              {/* Organizer/Speakers */}
-                              {hackathon.organizer_name && (
+                              {/* Organisers */}
+                              {hackathon.organisers && (
                                 <p className="text-sm text-gray-600 mb-3">
-                                  By {hackathon.organizer_name}
-                                  {hackathon.organizer_contactinfo && `, ${hackathon.organizer_contactinfo}`}
+                                  By {hackathon.organisers}
                                 </p>
                               )}
                               
@@ -690,37 +669,26 @@ export default function HackathonsPage() {
                                 </p>
                               )}
                               
-                              {/* Description */}
-                              {hackathon.short_description && (
-                                <p className="text-sm text-gray-500 line-clamp-2">
-                                  {hackathon.short_description}
+                              {/* Prizes */}
+                              {hackathon.prizes && (
+                                <p className="text-sm text-gray-600 mb-3">
+                                  Prizes: {hackathon.prizes}
                                 </p>
                               )}
                               
-                              {/* Badges */}
-                              <div className="flex items-center gap-2 flex-wrap mt-3">
-                                {getStatusBadge(hackathon.status)}
-                                {hackathon.category && (
-                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getCategoryColor(hackathon.category)}`}>
-                                    {hackathon.category.charAt(0).toUpperCase() + hackathon.category.slice(1)}
-                                  </span>
-                                )}
-                              </div>
+                              {/* Description */}
+                              {hackathon.description && (
+                                <p className="text-sm text-gray-500 line-clamp-2">
+                                  {hackathon.description}
+                                </p>
+                              )}
                             </div>
                             
                             {/* Hackathon image/logo placeholder */}
                             <div className="flex-shrink-0 w-24 h-24 bg-gray-100 rounded-lg flex items-center justify-center">
-                              {hackathon.image_url ? (
-                                <img
-                                  src={hackathon.image_url}
-                                  alt={hackathon.title}
-                                  className="w-full h-full object-cover rounded-lg"
-                                />
-                              ) : (
-                                <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                </svg>
-                              )}
+                              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                              </svg>
                             </div>
                           </div>
                         </div>

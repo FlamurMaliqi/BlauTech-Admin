@@ -55,7 +55,7 @@ export default function EventsPage() {
   }
 
   const handleDelete = async (event: any) => {
-    if (!confirm(`Are you sure you want to delete "${event.title}"?`)) {
+    if (!confirm(`Are you sure you want to delete "${event.name || event.title}"?`)) {
       return
     }
 
@@ -94,34 +94,22 @@ export default function EventsPage() {
     }
   }
 
-  const getStatusBadge = (status: string) => {
-    const statusConfig: Record<string, { bg: string; text: string; label: string }> = {
-      draft: { bg: 'bg-gray-100', text: 'text-gray-800', label: 'Draft' },
-      published: { bg: 'bg-green-100', text: 'text-green-800', label: 'Published' },
-      cancelled: { bg: 'bg-red-100', text: 'text-red-800', label: 'Cancelled' },
-      completed: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Completed' },
-      postponed: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Postponed' },
+  // Helper function to combine date and time
+  const combineDateTime = (date: string | Date | null, time: string | null): Date | null => {
+    if (!date) return null
+    const dateObj = typeof date === 'string' ? new Date(date) : date
+    if (time) {
+      const [hours, minutes] = time.split(':')
+      dateObj.setHours(parseInt(hours) || 0, parseInt(minutes) || 0, 0, 0)
     }
-    const config = statusConfig[status] || statusConfig.draft
-    return (
-      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${config.bg} ${config.text}`}>
-        {config.label}
-      </span>
-    )
+    return dateObj
   }
 
-  const getCategoryColor = (category: string) => {
-    const colors: Record<string, string> = {
-      workshop: 'bg-purple-100 text-purple-800',
-      conference: 'bg-indigo-100 text-indigo-800',
-      meetup: 'bg-pink-100 text-pink-800',
-      webinar: 'bg-cyan-100 text-cyan-800',
-      networking: 'bg-orange-100 text-orange-800',
-      training: 'bg-teal-100 text-teal-800',
-      hackathon: 'bg-emerald-100 text-emerald-800',
-      other: 'bg-gray-100 text-gray-800',
-    }
-    return colors[category] || colors.other
+  // Helper function to format date and time
+  const formatEventDateTime = (event: any) => {
+    const dateTime = combineDateTime(event.start_date, event.start_time)
+    if (!dateTime) return '-'
+    return format(dateTime, 'PPp')
   }
 
   // Helper function to format date for chronological view
@@ -147,15 +135,15 @@ export default function EventsPage() {
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase()
       filtered = filtered.filter((event) => {
-        const title = (event.title || '').toLowerCase()
-        const description = (event.short_description || event.description || '').toLowerCase()
+        const name = (event.name || event.title || '').toLowerCase()
+        const description = (event.description || '').toLowerCase()
         const location = (event.location || '').toLowerCase()
-        const organizer = (event.organizer_name || '').toLowerCase()
+        const organisers = (event.organisers || event.organizer_name || '').toLowerCase()
         return (
-          title.includes(query) ||
+          name.includes(query) ||
           description.includes(query) ||
           location.includes(query) ||
-          organizer.includes(query)
+          organisers.includes(query)
         )
       })
     }
@@ -184,8 +172,10 @@ export default function EventsPage() {
       result.push({
         date: new Date(dateKey),
         events: grouped[dateKey].sort((a, b) => {
-          const timeA = a.start_date ? new Date(a.start_date).getTime() : 0
-          const timeB = b.start_date ? new Date(b.start_date).getTime() : 0
+          const dateTimeA = combineDateTime(a.start_date, a.start_time)
+          const dateTimeB = combineDateTime(b.start_date, b.start_time)
+          const timeA = dateTimeA ? dateTimeA.getTime() : 0
+          const timeB = dateTimeB ? dateTimeB.getTime() : 0
           return timeA - timeB
         }),
       })
@@ -196,65 +186,43 @@ export default function EventsPage() {
   // Table columns configuration
   const tableColumns = [
     {
-      key: 'title',
-      label: 'Title',
+      key: 'name',
+      label: 'Name',
       render: (value: any, row: any) => (
         <div>
-          <div className="font-medium text-gray-900">{value || '-'}</div>
-          {row.short_description && (
-            <div className="text-sm text-gray-500 mt-1 line-clamp-1">{row.short_description}</div>
+          <div className="font-medium text-gray-900">{value || row.title || '-'}</div>
+          {row.description && (
+            <div className="text-sm text-gray-500 mt-1 line-clamp-1">{row.description}</div>
           )}
         </div>
       ),
     },
     {
       key: 'start_date',
-      label: 'Start Date',
-      render: (value: any) => (value ? format(new Date(value), 'PPp') : '-'),
-    },
-    {
-      key: 'end_date',
-      label: 'End Date',
-      render: (value: any) => (value ? format(new Date(value), 'PPp') : '-'),
+      label: 'Date & Time',
+      render: (value: any, row: any) => formatEventDateTime(row),
     },
     {
       key: 'location',
       label: 'Location',
     },
     {
-      key: 'organizer_name',
-      label: 'Organizer',
+      key: 'organisers',
+      label: 'Organisers',
       render: (value: any, row: any) => (
         <div>
-          {value ? (
-            <>
-              <div className="font-medium text-gray-900">{value}</div>
-              {row.organizer_contactinfo && (
-                <div className="text-sm text-gray-500 mt-0.5">{row.organizer_contactinfo}</div>
-              )}
-            </>
-          ) : (
-            '-'
-          )}
+          {value || row.organizer_name || '-'}
         </div>
       ),
     },
     {
-      key: 'status',
-      label: 'Status',
-      render: (value: any) => getStatusBadge(value),
-    },
-    {
-      key: 'category',
-      label: 'Category',
-      render: (value: any) =>
-        value ? (
-          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getCategoryColor(value)}`}>
-            {value.charAt(0).toUpperCase() + value.slice(1)}
-          </span>
-        ) : (
-          '-'
-        ),
+      key: 'format',
+      label: 'Format',
+      render: (value: any) => value ? (
+        <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+          {value.charAt(0).toUpperCase() + value.slice(1).replace('-', ' ')}
+        </span>
+      ) : '-',
     },
   ]
 
@@ -437,15 +405,9 @@ export default function EventsPage() {
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
                       <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2">
-                        {event.title}
+                        {event.name || event.title}
                       </h3>
                       <div className="flex items-center gap-2 flex-wrap">
-                        {getStatusBadge(event.status)}
-                        {event.category && (
-                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${getCategoryColor(event.category)}`}>
-                            {event.category.charAt(0).toUpperCase() + event.category.slice(1)}
-                          </span>
-                        )}
                         {event.format && (
                           <span className="px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                             {event.format.charAt(0).toUpperCase() + event.format.slice(1).replace('-', ' ')}
@@ -455,9 +417,9 @@ export default function EventsPage() {
                     </div>
                   </div>
                   
-                  {event.short_description && (
+                  {event.description && (
                     <p className="text-sm text-gray-600 mb-4 line-clamp-2">
-                      {event.short_description}
+                      {event.description}
                     </p>
                   )}
                 </div>
@@ -470,15 +432,10 @@ export default function EventsPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs text-gray-500">Start Date</p>
+                      <p className="text-xs text-gray-500">Date & Time</p>
                       <p className="text-sm font-medium text-gray-900">
-                        {event.start_date ? format(new Date(event.start_date), 'PPp') : '-'}
+                        {formatEventDateTime(event)}
                       </p>
-                      {event.end_date && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          Ends: {format(new Date(event.end_date), 'PPp')}
-                        </p>
-                      )}
                     </div>
                   </div>
 
@@ -496,62 +453,58 @@ export default function EventsPage() {
                     </div>
                   )}
 
-                  {/* Registration & Capacity */}
-                  <div className="grid grid-cols-2 gap-3">
-                    {event.registration_url && (
-                      <div>
-                        <p className="text-xs text-gray-500 mb-1">Registration</p>
-                        <a
-                          href={event.registration_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm text-primary-600 hover:text-primary-800 font-medium inline-flex items-center gap-1"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          Register
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                          </svg>
-                        </a>
-                      </div>
-                    )}
-                    {event.capacity && (
-                      <div>
-                        <p className="text-xs text-gray-500 mb-1">Capacity</p>
-                        <p className="text-sm font-medium text-gray-900">{event.capacity} attendees</p>
-                      </div>
-                    )}
-                  </div>
+                  {/* Link */}
+                  {event.link && (
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Link</p>
+                      <a
+                        href={event.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-primary-600 hover:text-primary-800 font-medium inline-flex items-center gap-1"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        View Event
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      </a>
+                    </div>
+                  )}
 
-                  {/* Organizer */}
-                  {event.organizer_name && (
+                  {/* Organisers */}
+                  {event.organisers && (
                     <div className="flex items-start gap-3">
                       <svg className="w-5 h-5 text-gray-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                       </svg>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs text-gray-500">Organizer</p>
-                        <p className="text-sm font-medium text-gray-900">{event.organizer_name}</p>
-                        {event.organizer_contactinfo && (
-                          <p className="text-xs text-gray-500 mt-0.5">{event.organizer_contactinfo}</p>
-                        )}
+                        <p className="text-xs text-gray-500">Organisers</p>
+                        <p className="text-sm font-medium text-gray-900">{event.organisers}</p>
                       </div>
                     </div>
                   )}
 
-                  {/* Additional Info */}
-                  <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
-                    {event.duration && (
-                      <span className="text-xs text-gray-500">
-                        ⏱️ {event.duration} min
-                      </span>
-                    )}
-                    {event.registration_deadline && (
-                      <span className="text-xs text-gray-500">
-                        📅 Reg. by {format(new Date(event.registration_deadline), 'MMM d')}
-                      </span>
-                    )}
-                  </div>
+                  {/* Social Media Posting Status */}
+                  {(event.posted_linkedin || event.posted_whatsapp || event.posted_newsletter) && (
+                    <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
+                      {event.posted_linkedin && (
+                        <span className="text-xs text-gray-500">
+                          ✓ LinkedIn
+                        </span>
+                      )}
+                      {event.posted_whatsapp && (
+                        <span className="text-xs text-gray-500">
+                          ✓ WhatsApp
+                        </span>
+                      )}
+                      {event.posted_newsletter && (
+                        <span className="text-xs text-gray-500">
+                          ✓ Newsletter
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -586,7 +539,7 @@ export default function EventsPage() {
                             <td
                               key={column.key}
                               className={`py-4 pl-4 pr-3 text-sm text-gray-900 sm:pl-6 ${
-                                column.key === 'title' ? '' : 'whitespace-nowrap'
+                                column.key === 'name' ? '' : 'whitespace-nowrap'
                               }`}
                             >
                               {column.render
@@ -660,22 +613,21 @@ export default function EventsPage() {
                           <div className="flex items-start justify-between gap-4">
                             <div className="flex-1">
                               {/* Time */}
-                              {event.start_date && (
+                              {event.start_time && (
                                 <div className="text-sm font-medium text-gray-900 mb-2">
-                                  {format(new Date(event.start_date), 'HH:mm')}
+                                  {event.start_time}
                                 </div>
                               )}
                               
                               {/* Title */}
                               <h3 className="text-lg font-bold text-gray-900 mb-2">
-                                {event.title}
+                                {event.name || event.title}
                               </h3>
                               
-                              {/* Organizer/Speakers */}
-                              {event.organizer_name && (
+                              {/* Organisers */}
+                              {event.organisers && (
                                 <p className="text-sm text-gray-600 mb-3">
-                                  By {event.organizer_name}
-                                  {event.organizer_contactinfo && `, ${event.organizer_contactinfo}`}
+                                  By {event.organisers}
                                 </p>
                               )}
                               
@@ -687,36 +639,27 @@ export default function EventsPage() {
                               )}
                               
                               {/* Description */}
-                              {event.short_description && (
+                              {event.description && (
                                 <p className="text-sm text-gray-500 line-clamp-2">
-                                  {event.short_description}
+                                  {event.description}
                                 </p>
                               )}
                               
-                              {/* Badges */}
-                              <div className="flex items-center gap-2 flex-wrap mt-3">
-                                {getStatusBadge(event.status)}
-                                {event.category && (
-                                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getCategoryColor(event.category)}`}>
-                                    {event.category.charAt(0).toUpperCase() + event.category.slice(1)}
+                              {/* Format Badge */}
+                              {event.format && (
+                                <div className="flex items-center gap-2 flex-wrap mt-3">
+                                  <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                    {event.format.charAt(0).toUpperCase() + event.format.slice(1).replace('-', ' ')}
                                   </span>
-                                )}
-                              </div>
+                                </div>
+                              )}
                             </div>
                             
                             {/* Event image/logo placeholder */}
                             <div className="flex-shrink-0 w-24 h-24 bg-gray-100 rounded-lg flex items-center justify-center">
-                              {event.image_url ? (
-                                <img
-                                  src={event.image_url}
-                                  alt={event.title}
-                                  className="w-full h-full object-cover rounded-lg"
-                                />
-                              ) : (
-                                <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                </svg>
-                              )}
+                              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
                             </div>
                           </div>
                         </div>
