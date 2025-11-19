@@ -55,7 +55,7 @@ export default function EventsPage() {
   }
 
   const handleDelete = async (event: any) => {
-    if (!confirm(`Are you sure you want to delete "${event.name || event.title}"?`)) {
+    if (!confirm(`Are you sure you want to delete "${event.name}"?`)) {
       return
     }
 
@@ -94,22 +94,16 @@ export default function EventsPage() {
     }
   }
 
-  // Helper function to combine date and time
-  const combineDateTime = (date: string | Date | null, time: string | null): Date | null => {
-    if (!date) return null
-    const dateObj = typeof date === 'string' ? new Date(date) : date
-    if (time) {
-      const [hours, minutes] = time.split(':')
-      dateObj.setHours(parseInt(hours) || 0, parseInt(minutes) || 0, 0, 0)
-    }
-    return dateObj
-  }
-
   // Helper function to format date and time
   const formatEventDateTime = (event: any) => {
-    const dateTime = combineDateTime(event.start_date, event.start_time)
-    if (!dateTime) return '-'
-    return format(dateTime, 'PPp')
+    if (!event.start_date) return '-'
+    const dateStr = format(new Date(event.start_date), 'PP')
+    if (event.start_time) {
+      // Format time from HH:MM:SS or HH:MM to HH:MM
+      const timeStr = event.start_time.split(':').slice(0, 2).join(':')
+      return `${dateStr} at ${timeStr}`
+    }
+    return dateStr
   }
 
   // Helper function to format date for chronological view
@@ -135,10 +129,10 @@ export default function EventsPage() {
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase()
       filtered = filtered.filter((event) => {
-        const name = (event.name || event.title || '').toLowerCase()
+        const name = (event.name || '').toLowerCase()
         const description = (event.description || '').toLowerCase()
         const location = (event.location || '').toLowerCase()
-        const organisers = (event.organisers || event.organizer_name || '').toLowerCase()
+        const organisers = (event.organisers || '').toLowerCase()
         return (
           name.includes(query) ||
           description.includes(query) ||
@@ -172,11 +166,11 @@ export default function EventsPage() {
       result.push({
         date: new Date(dateKey),
         events: grouped[dateKey].sort((a, b) => {
-          const dateTimeA = combineDateTime(a.start_date, a.start_time)
-          const dateTimeB = combineDateTime(b.start_date, b.start_time)
-          const timeA = dateTimeA ? dateTimeA.getTime() : 0
-          const timeB = dateTimeB ? dateTimeB.getTime() : 0
-          return timeA - timeB
+          // Compare by start_time if available, otherwise by date
+          if (a.start_time && b.start_time) {
+            return a.start_time.localeCompare(b.start_time)
+          }
+          return 0
         }),
       })
     })
@@ -190,7 +184,7 @@ export default function EventsPage() {
       label: 'Name',
       render: (value: any, row: any) => (
         <div>
-          <div className="font-medium text-gray-900">{value || row.title || '-'}</div>
+          <div className="font-medium text-gray-900">{value || '-'}</div>
           {row.description && (
             <div className="text-sm text-gray-500 mt-1 line-clamp-1">{row.description}</div>
           )}
@@ -209,18 +203,13 @@ export default function EventsPage() {
     {
       key: 'organisers',
       label: 'Organisers',
-      render: (value: any, row: any) => (
-        <div>
-          {value || row.organizer_name || '-'}
-        </div>
-      ),
     },
     {
       key: 'format',
       label: 'Format',
       render: (value: any) => value ? (
         <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-          {value.charAt(0).toUpperCase() + value.slice(1).replace('-', ' ')}
+          {value}
         </span>
       ) : '-',
     },
@@ -401,16 +390,21 @@ export default function EventsPage() {
                 className="group relative bg-white rounded-xl shadow-sm border-2 border-gray-200 hover:shadow-lg hover:border-primary-300 transition-all duration-300 overflow-hidden cursor-pointer"
               >
                 {/* Header with Status and Category */}
-                <div className="px-6 pt-6 pb-4">
+                  <div className="px-6 pt-6 pb-4">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
                       <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2">
-                        {event.name || event.title}
+                        {event.name}
                       </h3>
                       <div className="flex items-center gap-2 flex-wrap">
                         {event.format && (
                           <span className="px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            {event.format.charAt(0).toUpperCase() + event.format.slice(1).replace('-', ' ')}
+                            {event.format}
+                          </span>
+                        )}
+                        {event.is_highlight && (
+                          <span className="px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            Highlight
                           </span>
                         )}
                       </div>
@@ -621,7 +615,7 @@ export default function EventsPage() {
                               
                               {/* Title */}
                               <h3 className="text-lg font-bold text-gray-900 mb-2">
-                                {event.name || event.title}
+                                {event.name}
                               </h3>
                               
                               {/* Organisers */}
@@ -649,8 +643,13 @@ export default function EventsPage() {
                               {event.format && (
                                 <div className="flex items-center gap-2 flex-wrap mt-3">
                                   <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                    {event.format.charAt(0).toUpperCase() + event.format.slice(1).replace('-', ' ')}
+                                    {event.format}
                                   </span>
+                                  {event.is_highlight && (
+                                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                      Highlight
+                                    </span>
+                                  )}
                                 </div>
                               )}
                             </div>

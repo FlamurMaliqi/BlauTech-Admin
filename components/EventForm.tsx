@@ -4,23 +4,18 @@ import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 
 interface EventFormData {
-  title: string
-  short_description?: string
+  name: string
   description?: string
   start_date: string
   start_time?: string
-  end_date: string
-  duration?: number
+  organisers?: string
   location?: string
-  status: string
-  category: string
   format: string
-  registration_url?: string
-  registration_deadline?: string
-  capacity?: number
-  organizer_name?: string
-  organizer_contactinfo?: string
-  requirements?: string
+  link?: string
+  posted_linkedin?: boolean
+  posted_whatsapp?: boolean
+  posted_newsletter?: boolean
+  is_highlight?: boolean
 }
 
 interface EventFormProps {
@@ -36,9 +31,6 @@ export default function EventForm({ initialData, onSubmit, onCancel, title }: Ev
   })
   const [loading, setLoading] = useState(false)
   const [formError, setFormError] = useState('')
-  
-  const startDate = watch('start_date')
-  const endDate = watch('end_date')
 
   useEffect(() => {
     if (initialData) {
@@ -52,28 +44,26 @@ export default function EventForm({ initialData, onSubmit, onCancel, title }: Ev
       }
       
       reset({
-        title: initialData.title || '',
-        short_description: initialData.short_description || '',
+        name: initialData.name || initialData.title || '',
         description: initialData.description || '',
         start_date: startDate ? startDate.toISOString().slice(0, 10) : '',
         start_time: startTime,
-        end_date: initialData.end_date ? new Date(initialData.end_date).toISOString().slice(0, 10) : '',
-        duration: initialData.duration || '',
+        organisers: initialData.organisers || initialData.organizer_name || '',
         location: initialData.location || '',
-        status: initialData.status || 'draft',
-        category: initialData.category || '',
-        format: initialData.format || 'in-person',
-        registration_url: initialData.registration_url || '',
-        registration_deadline: initialData.registration_deadline ? new Date(initialData.registration_deadline).toISOString().slice(0, 16) : '',
-        capacity: initialData.capacity || '',
-        organizer_name: initialData.organizer_name || '',
-        organizer_contactinfo: initialData.organizer_contactinfo || '',
-        requirements: initialData.requirements || '',
+        format: initialData.format || 'In-Person',
+        link: initialData.link || initialData.registration_url || '',
+        posted_linkedin: initialData.posted_linkedin || false,
+        posted_whatsapp: initialData.posted_whatsapp || false,
+        posted_newsletter: initialData.posted_newsletter || false,
+        is_highlight: initialData.is_highlight || false,
       })
     } else {
       reset({
-        status: 'draft',
-        format: 'in-person',
+        format: 'In-Person',
+        posted_linkedin: false,
+        posted_whatsapp: false,
+        posted_newsletter: false,
+        is_highlight: false,
       })
     }
   }, [initialData, reset])
@@ -83,62 +73,33 @@ export default function EventForm({ initialData, onSubmit, onCancel, title }: Ev
     setLoading(true)
     
     try {
-      // Validate dates
-      if (data.start_date && data.end_date) {
-        const start = new Date(data.start_date)
-        const end = new Date(data.end_date)
-        
-        if (end < start) {
-          setFormError('End date must be after start date.')
+      // Validate URL if provided
+      if (data.link && data.link.trim()) {
+        try {
+          new URL(data.link)
+        } catch {
+          setFormError('Please enter a valid URL (e.g., https://example.com)')
           setLoading(false)
           return
         }
       }
       
-      // Validate registration deadline
-      if (data.registration_deadline && data.start_date) {
-        const deadline = new Date(data.registration_deadline)
-        const start = new Date(data.start_date)
-        
-        if (deadline > start) {
-          setFormError('Registration deadline must be before the event start date.')
-          setLoading(false)
-          return
-        }
-      }
-      
-      // Validate capacity
-      if (data.capacity !== undefined && data.capacity < 0) {
-        setFormError('Capacity must be a positive number.')
-        setLoading(false)
-        return
-      }
-      
-      // Validate duration
-      if (data.duration !== undefined && data.duration < 0) {
-        setFormError('Duration must be a positive number.')
-        setLoading(false)
-        return
-      }
-      
-      // Combine start_date and start_time if both are provided
+      // Process data for submission
       let processedData: any = { ...data }
       
-      if (data.start_date && data.start_time) {
-        const [hours, minutes] = data.start_time.split(':')
-        const startDateTime = new Date(data.start_date)
-        startDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0)
-        processedData.start_date = startDateTime.toISOString()
-      } else if (data.start_date) {
-        processedData.start_date = new Date(data.start_date).toISOString()
+      // Format start_date as date only (YYYY-MM-DD)
+      if (data.start_date) {
+        processedData.start_date = new Date(data.start_date).toISOString().split('T')[0]
       }
       
-      if (data.end_date) {
-        processedData.end_date = new Date(data.end_date).toISOString()
+      // start_time should remain as time string (HH:MM:SS format)
+      if (data.start_time) {
+        // Ensure time is in HH:MM:SS format
+        const timeParts = data.start_time.split(':')
+        if (timeParts.length === 2) {
+          processedData.start_time = `${data.start_time}:00`
+        }
       }
-      
-      // Remove start_time from the data as it's combined with start_date
-      delete processedData.start_time
       
       await onSubmit(processedData)
     } catch (err: any) {
@@ -175,39 +136,27 @@ export default function EventForm({ initialData, onSubmit, onCancel, title }: Ev
         <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Basic Information</h3>
         
         <div>
-          <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
-            Title *
+          <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+            Name *
           </label>
           <input
             type="text"
-            id="title"
-            {...register('title', { required: 'Title is required' })}
+            id="name"
+            {...register('name', { required: 'Name is required' })}
             className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500 bg-white text-gray-900 sm:text-sm transition-colors px-4 py-2.5"
           />
-          {errors.title && <p className="mt-1 text-sm text-red-600">{errors.title.message}</p>}
-        </div>
-
-        <div>
-          <label htmlFor="short_description" className="block text-sm font-medium text-gray-700 mb-1">
-            Short Description
-          </label>
-          <textarea
-            id="short_description"
-            rows={2}
-            {...register('short_description')}
-            placeholder="Brief summary for previews and cards"
-            className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500 bg-white text-gray-900 sm:text-sm transition-colors px-4 py-2.5"
-          />
+          {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>}
         </div>
 
         <div>
           <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
-            Full Description
+            Description
           </label>
           <textarea
             id="description"
             rows={4}
             {...register('description')}
+            placeholder="Event description"
             className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500 bg-white text-gray-900 sm:text-sm transition-colors px-4 py-2.5"
           />
         </div>
@@ -244,94 +193,6 @@ export default function EventForm({ initialData, onSubmit, onCancel, title }: Ev
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="end_date" className="block text-sm font-medium text-gray-700 mb-1">
-              End Date *
-            </label>
-            <input
-              type="date"
-              id="end_date"
-              min={startDate || undefined}
-              {...register('end_date', { 
-                required: 'End date is required',
-                validate: (value) => {
-                  if (startDate && value && new Date(value) < new Date(startDate)) {
-                    return 'End date must be after start date'
-                  }
-                  return true
-                }
-              })}
-              className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500 bg-white text-gray-900 sm:text-sm transition-colors px-4 py-2.5"
-            />
-            {errors.end_date && <p className="mt-1 text-sm text-red-600">{errors.end_date.message}</p>}
-          </div>
-
-          <div>
-            <label htmlFor="duration" className="block text-sm font-medium text-gray-700 mb-1">
-              Duration (minutes)
-            </label>
-            <input
-              type="number"
-              id="duration"
-              min="1"
-              {...register('duration', { 
-                valueAsNumber: true,
-                validate: (value) => {
-                  if (value !== undefined && value < 1) {
-                    return 'Duration must be at least 1 minute'
-                  }
-                  return true
-                }
-              })}
-              placeholder="e.g., 120"
-              className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500 bg-white text-gray-900 sm:text-sm transition-colors px-4 py-2.5"
-            />
-            {errors.duration && <p className="mt-1 text-sm text-red-600">{errors.duration.message}</p>}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">
-              Status *
-            </label>
-            <select
-              id="status"
-              {...register('status', { required: 'Status is required' })}
-              className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500 bg-white text-gray-900 sm:text-sm transition-colors px-4 py-2.5"
-            >
-              <option value="draft">Draft</option>
-              <option value="published">Published</option>
-              <option value="cancelled">Cancelled</option>
-              <option value="completed">Completed</option>
-              <option value="postponed">Postponed</option>
-            </select>
-          </div>
-
-          <div>
-            <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1">
-              Category *
-            </label>
-            <select
-              id="category"
-              {...register('category', { required: 'Category is required' })}
-              className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500 bg-white text-gray-900 sm:text-sm transition-colors px-4 py-2.5"
-            >
-              <option value="">Select category</option>
-              <option value="workshop">Workshop</option>
-              <option value="conference">Conference</option>
-              <option value="meetup">Meetup</option>
-              <option value="webinar">Webinar</option>
-              <option value="networking">Networking</option>
-              <option value="training">Training</option>
-              <option value="hackathon">Hackathon</option>
-              <option value="other">Other</option>
-            </select>
-            {errors.category && <p className="mt-1 text-sm text-red-600">{errors.category.message}</p>}
-          </div>
-        </div>
-
         <div>
           <label htmlFor="format" className="block text-sm font-medium text-gray-700 mb-1">
             Format *
@@ -341,9 +202,9 @@ export default function EventForm({ initialData, onSubmit, onCancel, title }: Ev
             {...register('format', { required: 'Format is required' })}
             className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500 bg-white text-gray-900 sm:text-sm transition-colors px-4 py-2.5"
           >
-            <option value="in-person">In-Person</option>
-            <option value="online">Online</option>
-            <option value="hybrid">Hybrid</option>
+            <option value="In-Person">In-Person</option>
+            <option value="Online">Online</option>
+            <option value="Hybrid">Hybrid</option>
           </select>
         </div>
 
@@ -359,20 +220,28 @@ export default function EventForm({ initialData, onSubmit, onCancel, title }: Ev
             className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500 bg-white text-gray-900 sm:text-sm transition-colors px-4 py-2.5"
           />
         </div>
-      </div>
 
-      {/* Registration & Capacity */}
-      <div className="space-y-4 pt-4 border-t">
-        <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Registration & Capacity</h3>
-        
         <div>
-          <label htmlFor="registration_url" className="block text-sm font-medium text-gray-700 mb-1">
-            Registration URL
+          <label htmlFor="organisers" className="block text-sm font-medium text-gray-700 mb-1">
+            Organisers
+          </label>
+          <input
+            type="text"
+            id="organisers"
+            {...register('organisers')}
+            placeholder="Event organisers"
+            className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500 bg-white text-gray-900 sm:text-sm transition-colors px-4 py-2.5"
+          />
+        </div>
+
+        <div>
+          <label htmlFor="link" className="block text-sm font-medium text-gray-700 mb-1">
+            Link
           </label>
           <input
             type="url"
-            id="registration_url"
-            {...register('registration_url', {
+            id="link"
+            {...register('link', {
               validate: (value) => {
                 if (!value) return true // Optional field
                 try {
@@ -383,100 +252,65 @@ export default function EventForm({ initialData, onSubmit, onCancel, title }: Ev
                 }
               }
             })}
-            placeholder="https://example.com/register"
+            placeholder="https://example.com/event"
             className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500 bg-white text-gray-900 sm:text-sm transition-colors px-4 py-2.5"
           />
-          {errors.registration_url && <p className="mt-1 text-sm text-red-600">{errors.registration_url.message}</p>}
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="registration_deadline" className="block text-sm font-medium text-gray-700 mb-1">
-              Registration Deadline
-            </label>
-            <input
-              type="datetime-local"
-              id="registration_deadline"
-              max={startDate ? new Date(startDate).toISOString().slice(0, 16) : undefined}
-              {...register('registration_deadline', {
-                validate: (value) => {
-                  if (value && startDate && new Date(value) > new Date(startDate)) {
-                    return 'Registration deadline must be before event start date'
-                  }
-                  return true
-                }
-              })}
-              className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500 bg-white text-gray-900 sm:text-sm transition-colors px-4 py-2.5"
-            />
-            {errors.registration_deadline && <p className="mt-1 text-sm text-red-600">{errors.registration_deadline.message}</p>}
-          </div>
-
-          <div>
-            <label htmlFor="capacity" className="block text-sm font-medium text-gray-700 mb-1">
-              Capacity (max attendees)
-            </label>
-            <input
-              type="number"
-              id="capacity"
-              min="1"
-              {...register('capacity', { 
-                valueAsNumber: true,
-                validate: (value) => {
-                  if (value !== undefined && value < 1) {
-                    return 'Capacity must be at least 1'
-                  }
-                  return true
-                }
-              })}
-              placeholder="e.g., 100"
-              className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500 bg-white text-gray-900 sm:text-sm transition-colors px-4 py-2.5"
-            />
-            {errors.capacity && <p className="mt-1 text-sm text-red-600">{errors.capacity.message}</p>}
-          </div>
+          {errors.link && <p className="mt-1 text-sm text-red-600">{errors.link.message}</p>}
         </div>
       </div>
 
-      {/* Organizer & Requirements */}
+      {/* Social Media & Highlight */}
       <div className="space-y-4 pt-4 border-t">
-        <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Organizer & Requirements</h3>
+        <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Social Media & Highlight</h3>
         
-        <div>
-          <label htmlFor="organizer_name" className="block text-sm font-medium text-gray-700 mb-1">
-            Organizer Name
-          </label>
-          <input
-            type="text"
-            id="organizer_name"
-            {...register('organizer_name')}
-            placeholder="Name of the organizer"
-            className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500 bg-white text-gray-900 sm:text-sm transition-colors px-4 py-2.5"
-          />
-        </div>
+        <div className="space-y-3">
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="posted_linkedin"
+              {...register('posted_linkedin')}
+              className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+            />
+            <label htmlFor="posted_linkedin" className="ml-2 block text-sm text-gray-700">
+              Posted on LinkedIn
+            </label>
+          </div>
 
-        <div>
-          <label htmlFor="organizer_contactinfo" className="block text-sm font-medium text-gray-700 mb-1">
-            Organizer Contact Info
-          </label>
-          <input
-            type="text"
-            id="organizer_contactinfo"
-            {...register('organizer_contactinfo')}
-            placeholder="Email, phone, or contact information"
-            className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500 bg-white text-gray-900 sm:text-sm transition-colors px-4 py-2.5"
-          />
-        </div>
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="posted_whatsapp"
+              {...register('posted_whatsapp')}
+              className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+            />
+            <label htmlFor="posted_whatsapp" className="ml-2 block text-sm text-gray-700">
+              Posted on WhatsApp
+            </label>
+          </div>
 
-        <div>
-          <label htmlFor="requirements" className="block text-sm font-medium text-gray-700 mb-1">
-            Requirements / Prerequisites
-          </label>
-          <textarea
-            id="requirements"
-            rows={3}
-            {...register('requirements')}
-            placeholder="Prerequisites, eligibility criteria, or requirements for attendees"
-            className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500 bg-white text-gray-900 sm:text-sm transition-colors px-4 py-2.5"
-          />
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="posted_newsletter"
+              {...register('posted_newsletter')}
+              className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+            />
+            <label htmlFor="posted_newsletter" className="ml-2 block text-sm text-gray-700">
+              Posted in Newsletter
+            </label>
+          </div>
+
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="is_highlight"
+              {...register('is_highlight')}
+              className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+            />
+            <label htmlFor="is_highlight" className="ml-2 block text-sm text-gray-700">
+              Highlight Event
+            </label>
+          </div>
         </div>
       </div>
 
