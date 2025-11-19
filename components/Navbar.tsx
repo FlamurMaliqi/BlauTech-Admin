@@ -14,7 +14,6 @@ export default function Navbar() {
     { name: 'Hackathons', href: '/dashboard/hackathons' },
     { name: 'Scholarships', href: '/dashboard/scholarships' },
     { name: 'Signups', href: '/dashboard/signups' },
-    { name: 'Partner Events', href: '/dashboard/partner-events' },
   ]
 
   return (

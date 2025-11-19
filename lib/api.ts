@@ -136,21 +136,6 @@ export const signupsApi = {
   delete: (id: string) => deleteRecord('signups', id),
 }
 
-// Partner Events API
-// IMPORTANT: Your table is named "partner events" (with a space)
-// The Supabase JS client cannot handle table names with spaces
-// You MUST rename the table in Supabase for this to work:
-//
-// Run this in Supabase SQL Editor:
-//   ALTER TABLE "partner events" RENAME TO partner_events;
-//
-// After renaming, the code below will work correctly
-export const partnerEventsApi = {
-  fetch: () => fetchTable('partner_events'),
-  create: (event: any) => createRecord('partner_events', event),
-  update: (id: number, updates: any) => updateRecord('partner_events', id, updates),
-  delete: (id: number) => deleteRecord('partner_events', id),
-}
 
 // Get counts for dashboard statistics
 export async function getTableCount(tableName: string): Promise<number> {
@@ -180,6 +165,5 @@ export const dashboardStats = {
   getHackathonsCount: () => getTableCount('hackathons'),
   getScholarshipsCount: () => getTableCount('scholarships'),
   getSignupsCount: () => getTableCount('signups'),
-  getPartnerEventsCount: () => getTableCount('partner_events'),
 }
 

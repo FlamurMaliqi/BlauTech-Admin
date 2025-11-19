@@ -34,12 +34,6 @@ const UsersIcon = () => (
   </svg>
 )
 
-const LinkIcon = () => (
-  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-  </svg>
-)
-
 interface StatCard {
   name: string
   href: string
@@ -56,7 +50,6 @@ export default function Dashboard() {
     hackathons: 0,
     scholarships: 0,
     signups: 0,
-    partnerEvents: 0,
   })
   const [calendarEvents, setCalendarEvents] = useState<any[]>([])
   const [calendarHackathons, setCalendarHackathons] = useState<any[]>([])
@@ -72,14 +65,13 @@ export default function Dashboard() {
   const loadStats = async () => {
     try {
       setLoading(true)
-      const [events, hackathons, scholarships, signups, partnerEvents] = await Promise.all([
+      const [events, hackathons, scholarships, signups] = await Promise.all([
         dashboardStats.getEventsCount(),
         dashboardStats.getHackathonsCount(),
         dashboardStats.getScholarshipsCount(),
         dashboardStats.getSignupsCount(),
-        dashboardStats.getPartnerEventsCount(),
       ])
-      setStats({ events, hackathons, scholarships, signups, partnerEvents })
+      setStats({ events, hackathons, scholarships, signups })
     } catch (error) {
       console.error('Error loading stats:', error)
     } finally {
@@ -144,15 +136,6 @@ export default function Dashboard() {
       textColor: 'text-amber-600',
       borderColor: 'border-amber-200',
     },
-    {
-      name: 'Partner Events',
-      href: '/dashboard/partner-events',
-      icon: <LinkIcon />,
-      gradient: 'from-red-500 to-red-600',
-      bgColor: 'bg-red-50',
-      textColor: 'text-red-600',
-      borderColor: 'border-red-200',
-    },
   ]
 
   const getCount = (name: string): number => {
@@ -165,8 +148,6 @@ export default function Dashboard() {
         return stats.scholarships
       case 'Signups':
         return stats.signups
-      case 'Partner Events':
-        return stats.partnerEvents
       default:
         return 0
     }

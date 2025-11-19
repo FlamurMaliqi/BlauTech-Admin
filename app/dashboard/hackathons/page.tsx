@@ -67,6 +67,16 @@ export default function HackathonsPage() {
     }
   }
 
+  const handleToggleHighlight = async (hackathon: any, e: React.MouseEvent) => {
+    e.stopPropagation() // Prevent opening detail view
+    try {
+      await hackathonsApi.update(hackathon.id, { is_highlight: !hackathon.is_highlight })
+      await loadHackathons()
+    } catch (err: any) {
+      setError(err.message || 'Failed to update highlight status')
+    }
+  }
+
   const handleSubmit = async (data: any) => {
     try {
       setError('')
@@ -192,7 +202,12 @@ export default function HackathonsPage() {
       label: 'Name',
       render: (value: any, row: any) => (
         <div>
-          <div className="font-medium text-gray-900">{value || row.title || '-'}</div>
+          <div className="font-medium text-gray-900 flex items-center gap-2">
+            {row.is_highlight && (
+              <span className="text-yellow-500" title="Highlighted">⭐</span>
+            )}
+            {value || row.title || '-'}
+          </div>
           {row.description && (
             <div className="text-sm text-gray-500 mt-1 line-clamp-1">{row.description}</div>
           )}
@@ -403,15 +418,41 @@ export default function HackathonsPage() {
               <div
                 key={hackathon.id}
                 onClick={() => handleViewDetails(hackathon)}
-                className="group relative bg-white rounded-xl shadow-sm border-2 border-gray-200 hover:shadow-lg hover:border-primary-300 transition-all duration-300 overflow-hidden cursor-pointer"
+                className={`group relative rounded-xl shadow-sm border-2 transition-all duration-300 overflow-hidden cursor-pointer ${
+                  hackathon.is_highlight
+                    ? 'bg-gradient-to-br from-yellow-50 to-amber-50 border-yellow-400 hover:border-yellow-500 hover:shadow-xl ring-2 ring-yellow-200 ring-opacity-50'
+                    : 'bg-white border-gray-200 hover:shadow-lg hover:border-primary-300'
+                }`}
               >
+                {/* Highlight Toggle Button */}
+                <button
+                  onClick={(e) => handleToggleHighlight(hackathon, e)}
+                  className={`absolute top-4 right-4 z-10 p-2 rounded-full transition-all duration-200 ${
+                    hackathon.is_highlight
+                      ? 'bg-yellow-400 text-yellow-900 hover:bg-yellow-500 shadow-md'
+                      : 'bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-yellow-500'
+                  }`}
+                  title={hackathon.is_highlight ? 'Remove highlight' : 'Add highlight'}
+                >
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                  </svg>
+                </button>
+
                 {/* Header with Status and Category */}
                 <div className="px-6 pt-6 pb-4">
                   <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
+                    <div className="flex-1 pr-10">
                       <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2">
                         {hackathon.name || hackathon.title}
                       </h3>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {hackathon.is_highlight && (
+                          <span className="px-3 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            ⭐ Highlight
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   
@@ -565,7 +606,14 @@ export default function HackathonsPage() {
                     </thead>
                     <tbody className="divide-y divide-gray-200 bg-white">
                       {filteredHackathons.map((hackathon) => (
-                        <tr key={hackathon.id} className="hover:bg-gray-50 transition-colors">
+                        <tr 
+                          key={hackathon.id} 
+                          className={`transition-colors ${
+                            hackathon.is_highlight
+                              ? 'bg-yellow-50 hover:bg-yellow-100 border-l-4 border-yellow-400'
+                              : 'hover:bg-gray-50'
+                          }`}
+                        >
                           {tableColumns.map((column) => (
                             <td
                               key={column.key}
@@ -638,7 +686,11 @@ export default function HackathonsPage() {
                       <div
                         key={hackathon.id}
                         onClick={() => handleViewDetails(hackathon)}
-                        className="group bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md hover:border-primary-300 transition-all duration-200 overflow-hidden cursor-pointer"
+                        className={`group rounded-xl shadow-sm border transition-all duration-200 overflow-hidden cursor-pointer ${
+                          hackathon.is_highlight
+                            ? 'bg-gradient-to-br from-yellow-50 to-amber-50 border-yellow-400 hover:border-yellow-500 hover:shadow-lg ring-2 ring-yellow-200 ring-opacity-50'
+                            : 'bg-white border-gray-200 hover:shadow-md hover:border-primary-300'
+                        }`}
                       >
                         <div className="p-6">
                           <div className="flex items-start justify-between gap-4">
@@ -651,9 +703,16 @@ export default function HackathonsPage() {
                               )}
                               
                               {/* Title */}
-                              <h3 className="text-lg font-bold text-gray-900 mb-2">
-                                {hackathon.name || hackathon.title}
-                              </h3>
+                              <div className="flex items-center gap-2 mb-2">
+                                <h3 className="text-lg font-bold text-gray-900">
+                                  {hackathon.name || hackathon.title}
+                                </h3>
+                                {hackathon.is_highlight && (
+                                  <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                    ⭐ Highlight
+                                  </span>
+                                )}
+                              </div>
                               
                               {/* Organisers */}
                               {hackathon.organisers && (
