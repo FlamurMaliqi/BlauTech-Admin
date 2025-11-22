@@ -22,6 +22,9 @@ export default function ScholarshipsPage() {
   const [successMessage, setSuccessMessage] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>('card')
   const [searchQuery, setSearchQuery] = useState('')
+  const [scholarshipLink, setScholarshipLink] = useState('')
+  const [webhookUrl] = useState('http://localhost:5678/webhook-test/8e521ce6-0920-44b4-9375-b6ba6f2f38aa')
+  const [webhookLoading, setWebhookLoading] = useState(false)
 
   useEffect(() => {
     loadScholarships()
@@ -91,6 +94,40 @@ export default function ScholarshipsPage() {
       console.error('Error saving scholarship:', err)
       // Error will be displayed in the form component
       throw err // Re-throw so form can handle it
+    }
+  }
+
+  const handleWebhookSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!scholarshipLink.trim() || !webhookUrl) {
+      return
+    }
+
+    try {
+      setWebhookLoading(true)
+      setError('')
+      
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          scholarship_link: scholarshipLink.trim(),
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Webhook request failed: ${response.statusText}`)
+      }
+
+      setSuccessMessage('Scholarship link sent successfully!')
+      setScholarshipLink('')
+      setTimeout(() => setSuccessMessage(''), 3000)
+    } catch (err: any) {
+      setError(err.message || 'Failed to send webhook request')
+    } finally {
+      setWebhookLoading(false)
     }
   }
 
@@ -407,6 +444,29 @@ export default function ScholarshipsPage() {
                 </svg>
               </button>
             )}
+          </div>
+        </div>
+
+        {/* Webhook URL Input */}
+        <div className="mb-8 flex justify-center">
+          <div className="w-full max-w-2xl">
+            <form onSubmit={handleWebhookSubmit} className="flex items-center gap-3">
+              <input
+                type="url"
+                placeholder="Enter scholarship link URL..."
+                value={scholarshipLink}
+                onChange={(e) => setScholarshipLink(e.target.value)}
+                className="flex-1 text-base px-4 py-3 border-2 border-gray-300 rounded-lg bg-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 shadow-sm"
+                disabled={webhookLoading}
+              />
+              <button
+                type="submit"
+                disabled={!scholarshipLink.trim() || !webhookUrl || webhookLoading}
+                className="px-6 py-3 text-base font-semibold text-white bg-primary-600 rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+              >
+                {webhookLoading ? 'Sending...' : 'Send'}
+              </button>
+            </form>
           </div>
         </div>
 
