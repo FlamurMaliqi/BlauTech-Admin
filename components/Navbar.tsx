@@ -13,6 +13,7 @@ export default function Navbar() {
     { name: 'Events', href: '/dashboard/events' },
     { name: 'Hackathons', href: '/dashboard/hackathons' },
     { name: 'Scholarships', href: '/dashboard/scholarships' },
+    { name: 'Student Clubs', href: '/dashboard/student-clubs' },
     { name: 'Signups', href: '/dashboard/signups' },
   ]
 

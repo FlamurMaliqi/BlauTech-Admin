@@ -71,12 +71,26 @@ export async function updateRecord(tableName: string, id: string | number, updat
     throw new Error('Not authenticated. Please log in again.')
   }
 
-  const { data, error } = await supabase
+  // Some tables don't have an `updated_at` column; try with it first, then fall back.
+  const updatePayloadWithTimestamp = { ...updates, updated_at: new Date().toISOString() }
+  let { data, error } = await supabase
     .from(tableName)
-    .update({ ...updates, updated_at: new Date().toISOString() })
+    .update(updatePayloadWithTimestamp)
     .eq('id', id)
     .select()
     .single()
+
+  if (
+    error &&
+    (error.code === '42703' || error.message?.includes('column "updated_at"') || error.message?.includes('updated_at'))
+  ) {
+    ;({ data, error } = await supabase
+      .from(tableName)
+      .update({ ...updates })
+      .eq('id', id)
+      .select()
+      .single())
+  }
   
   if (error) {
     console.error(`Error updating record in ${tableName}:`, error)
@@ -134,6 +148,13 @@ export const scholarshipsApi = {
 export const signupsApi = {
   fetch: () => fetchTable('signups'),
   delete: (id: string) => deleteRecord('signups', id),
+}
+
+export const studentClubsApi = {
+  fetch: () => fetchTable('student_clubs'),
+  create: (club: any) => createRecord('student_clubs', club),
+  update: (id: string | number, updates: any) => updateRecord('student_clubs', id, updates),
+  delete: (id: string | number) => deleteRecord('student_clubs', id),
 }
 
 

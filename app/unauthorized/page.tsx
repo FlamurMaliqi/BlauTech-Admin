@@ -16,7 +16,7 @@ export default function UnauthorizedPage() {
       <div className="max-w-md w-full space-y-8 p-10 bg-white rounded-xl shadow-xl border border-gray-100 text-center">
         <h1 className="text-3xl font-bold text-gray-900">Access Denied</h1>
         <p className="text-gray-600">
-          You don't have admin privileges to access this panel.
+          You don&apos;t have admin privileges to access this panel.
         </p>
         <button
           onClick={handleSignOut}
